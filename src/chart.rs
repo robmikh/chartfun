@@ -5,6 +5,7 @@ use windows::{core::Result, Foundation::Numerics::Matrix3x2, Graphics::{DirectX:
 use crate::{renderer::Renderer, windows_utils::composition::CompositionDrawingSurfaceInterop};
 
 const MAX_POINTS: usize = 60;
+const CELL_WIDTH_IN_SECONDS: usize = 10;
 
 pub struct ChartSurface {
     surface: CompositionDrawingSurface,
@@ -13,6 +14,8 @@ pub struct ChartSurface {
     height: i32,
     outline_brush: ID2D1SolidColorBrush,
     fill_brush: ID2D1SolidColorBrush,
+    grid_brush: ID2D1SolidColorBrush,
+    grid_offset: usize,
 }
 
 impl ChartSurface {
@@ -35,6 +38,10 @@ impl ChartSurface {
             unsafe {
                 renderer.d2d_context.CreateSolidColorBrush(&color, None)?
             };
+        let grid_brush = 
+                unsafe {
+                    renderer.d2d_context.CreateSolidColorBrush(&D2D1_COLOR_F{ a: 1.0, r: 0.8510, g: 0.9176, b: 0.9569 }, None)?
+                };
 
         Ok(Self { 
             surface, 
@@ -43,6 +50,8 @@ impl ChartSurface {
             height,
             outline_brush,
             fill_brush,
+            grid_brush,
+            grid_offset: 0,
         })
     }
 
@@ -79,12 +88,31 @@ impl ChartSurface {
                     sink.Close()?;
                 }
 
-                context.DrawRectangle(&D2D_RECT_F { left: 0.0, top: 0.0, right: self.width as f32, bottom: self.height as f32}, &self.outline_brush, 2.0, None);
-
-                // TODO: Draw graph lines
+                // Draw graph lines
+                // Horizontal lines
+                let cell_height = self.height as f32 / 10.0;
+                for i in 0..9 {
+                    let y = (i + 1) as f32 * cell_height;
+                    context.DrawLine(
+                        D2D_POINT_2F { x: 0.0, y: y }, 
+                        D2D_POINT_2F { x: self.width as f32, y: y }, 
+                        &self.grid_brush, 1.0, None);
+                }
+                // Vertical lines
+                let cell_width = CELL_WIDTH_IN_SECONDS as f32 * pixels_per_second;
+                for i in 0..10 {
+                    let offset = self.grid_offset as f32 * pixels_per_second;
+                    let x = (i + 1) as f32 * cell_width;
+                    context.DrawLine(
+                        D2D_POINT_2F { x: x - offset, y: 0.0 }, 
+                        D2D_POINT_2F { x: x - offset, y: self.height as f32 }, 
+                        &self.grid_brush, 1.0, None);
+                }
 
                 context.DrawGeometry(&path_geometry, &self.outline_brush, 1.0, None);
                 context.FillGeometry(&path_geometry, &self.fill_brush, None);
+
+                context.DrawRectangle(&D2D_RECT_F { left: 0.0, top: 0.0, right: self.width as f32, bottom: self.height as f32}, &self.outline_brush, 2.0, None);
             }
             Ok(())
         })?;
@@ -96,6 +124,7 @@ impl ChartSurface {
             self.points.pop_front();
         }
         self.points.push_back(point);
+        self.grid_offset = (self.grid_offset + 1) % CELL_WIDTH_IN_SECONDS;
     }
 
     fn pixels_per_second(&self) -> f32 {
