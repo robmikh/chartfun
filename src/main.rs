@@ -2,6 +2,7 @@
 
 mod chart;
 mod pdh;
+mod perf;
 mod pid;
 mod renderer;
 mod window;
@@ -10,8 +11,8 @@ mod windows_utils;
 use std::time::Duration;
 
 use chart::ChartSurface;
-use pid::parse_pid;
-use processdumper::{find_process_id_with_name_in_session, get_session_for_current_process};
+use perf::PerfTracker;
+use pid::{get_current_dwm_pid, parse_pid};
 use renderer::Renderer;
 use window::Window;
 use windows::{
@@ -19,13 +20,7 @@ use windows::{
     Foundation::{Numerics::Vector2, TypedEventHandler},
     Win32::{
         Foundation::E_FAIL,
-        System::{
-            Performance::{
-                PdhCollectQueryData, PdhGetFormattedCounterValue, PDH_CSTATUS_VALID_DATA,
-                PDH_FMT_COUNTERVALUE, PDH_FMT_DOUBLE,
-            },
-            WinRT::{RoInitialize, RO_INIT_SINGLETHREADED},
-        },
+        System::WinRT::{RoInitialize, RO_INIT_SINGLETHREADED},
         UI::WindowsAndMessaging::{
             DispatchMessageW, GetMessageW, MessageBoxW, TranslateMessage, MB_ICONERROR, MSG,
         },
@@ -39,8 +34,6 @@ use windows_utils::{
         shutdown_dispatcher_queue_controller_and_wait,
     },
 };
-
-use crate::pdh::{add_perf_counters, PerfQueryHandle, PDH_FUNCTION};
 
 fn run() -> Result<()> {
     let args: Vec<_> = std::env::args().skip(1).collect();
@@ -88,66 +81,29 @@ fn run() -> Result<()> {
     let process_id = if let Some(pid) = pid {
         pid
     } else {
-        // During RDP sessions, you'll have multiple sessions and muiltple
-        // DWMs. We want the one the user is currently using, so find the
-        // session our program is running in.
-        let current_session = get_session_for_current_process()?;
-        let process_id = if let Some(process_id) =
-            find_process_id_with_name_in_session("dwm.exe", current_session)?
-        {
-            process_id
-        } else {
-            return Err(windows::core::Error::new(
-                E_FAIL,
-                "Could not find a dwm process for this session!",
-            ));
-        };
-        process_id
+        get_current_dwm_pid()?
     };
-
-    let counter_path = format!(
-        r#"\GPU Engine(pid_{}*engtype_3D)\Utilization Percentage"#,
-        process_id
-    );
-
-    let mut query_handle = PerfQueryHandle::open_query()?;
-    let counter_handles = add_perf_counters(&query_handle, &counter_path)?;
+    let perf_tracker = PerfTracker::new(process_id)?;
 
     let timer = queue.CreateTimer()?;
     timer.SetInterval(Duration::from_secs(1).into())?;
     timer.SetIsRepeating(true)?;
-    let timer_token = timer.Tick(&TypedEventHandler::<_, _>::new(move |_, _| -> Result<()> {
-        unsafe {
-            PDH_FUNCTION(PdhCollectQueryData(query_handle.0)).ok()?;
+    let timer_token = timer.Tick(&TypedEventHandler::<_, _>::new({
+        // SAFETY: We know that the timer will only tick on the same thread
+        // as the dispatcher queue (our UI thread). As long as we remove the tick
+        // handler before the end of the lifetime of our perf tracker object,
+        // we should be fine.
+        let perf_tracker: u64 = &perf_tracker as *const _ as _;
+        move |_, _| -> Result<()> {
+            let perf_tracker = unsafe { (perf_tracker as *const PerfTracker).as_ref().unwrap() };
+            let utilization_value = perf_tracker.get_current_value()?;
+            chart.add_point(utilization_value as f32);
+            chart.redraw(&renderer)?;
+            Ok(())
         }
-
-        let mut utilization_value = 0.0;
-        for counter_handle in &counter_handles {
-            let counter_value = unsafe {
-                let mut counter_type = 0;
-                let mut counter_value = PDH_FMT_COUNTERVALUE::default();
-                PDH_FUNCTION(PdhGetFormattedCounterValue(
-                    *counter_handle,
-                    PDH_FMT_DOUBLE,
-                    Some(&mut counter_type),
-                    &mut counter_value,
-                ))
-                .ok()?;
-                counter_value
-            };
-            assert_eq!(counter_value.CStatus, PDH_CSTATUS_VALID_DATA);
-            let value = unsafe { counter_value.Anonymous.doubleValue };
-            utilization_value += value;
-        }
-
-        chart.add_point(utilization_value as f32);
-        chart.redraw(&renderer)?;
-        Ok(())
     }))?;
 
-    unsafe {
-        PDH_FUNCTION(PdhCollectQueryData(query_handle.0)).ok()?;
-    }
+    perf_tracker.start()?;
     timer.Start()?;
 
     let window = Window::new("chartfun", window_width, window_height)?;
@@ -161,8 +117,10 @@ fn run() -> Result<()> {
             DispatchMessageW(&message);
         }
     }
+    // SAFETY: There isn't a race here with the tick handler because we are
+    // no longer pumping messages.
     timer.RemoveTick(timer_token)?;
-    query_handle.close_query()?;
+    perf_tracker.close()?;
     let _ = shutdown_dispatcher_queue_controller_and_wait(&controller, message.wParam.0 as i32)?;
     Ok(())
 }
