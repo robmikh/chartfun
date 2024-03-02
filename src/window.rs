@@ -20,7 +20,7 @@ use windows::{
 use crate::windows_utils::handle::CheckHandle;
 
 static REGISTER_WINDOW_CLASS: Once = Once::new();
-const WINDOW_CLASS_NAME: PCWSTR = w!("uiexp.Window");
+const WINDOW_CLASS_NAME: PCWSTR = w!("chartfun.Window");
 
 pub struct Window {
     handle: HWND,
