@@ -3,15 +3,19 @@ mod windows_utils;
 mod window;
 mod chart;
 
+use std::time::Duration;
+
 use chart::ChartSurface;
+use rand::Rng;
 use renderer::Renderer;
 use window::Window;
-use windows::{core::Result, Foundation::Numerics::{Vector2, Vector3}, Win32::{System::WinRT::{RoInitialize, RO_INIT_SINGLETHREADED}, UI::WindowsAndMessaging::{DispatchMessageW, GetMessageW, TranslateMessage, MSG}}, UI::{Color, Composition::{CompositionStretch, Compositor}}};
+use windows::{core::Result, Foundation::{Numerics::{Vector2, Vector3}, TypedEventHandler}, Win32::{System::WinRT::{RoInitialize, RO_INIT_SINGLETHREADED}, UI::WindowsAndMessaging::{DispatchMessageW, GetMessageW, TranslateMessage, MSG}}, UI::{Color, Composition::{CompositionStretch, Compositor}}};
 use windows_utils::{composition::CompositionInterop, dispatcher_queue::{create_dispatcher_queue_controller_for_current_thread, shutdown_dispatcher_queue_controller_and_wait}};
 
 fn main() -> Result<()> {
     unsafe { RoInitialize(RO_INIT_SINGLETHREADED)? };
     let controller = create_dispatcher_queue_controller_for_current_thread()?;
+    let queue = controller.DispatcherQueue()?;
 
     let window_width = 800;
     let window_height = 600;
@@ -34,12 +38,24 @@ fn main() -> Result<()> {
     brush.SetStretch(CompositionStretch::None)?;
     visual.SetBrush(&brush)?;
     root.Children()?.InsertAtTop(&visual)?;
-
-    chart.add_point(0.05 * 100.0);
-    chart.add_point(0.15 * 100.0);
-    chart.add_point(0.50 * 100.0);
-    chart.add_point(0.35 * 100.0);
     chart.redraw(&renderer)?;
+
+    let timer = queue.CreateTimer()?;
+    timer.SetInterval(Duration::from_secs(1).into())?;
+    timer.SetIsRepeating(true)?;
+    let mut last_value = 0.0;
+    let timer_token = timer.Tick(&TypedEventHandler::<_, _>::new(move |_, _| -> Result<()> {      
+        let mut rng = rand::thread_rng();
+        let value: f32 = rng.gen_range(-20.0..=20.0);
+
+        let value = (last_value + value).clamp(0.0, 100.0);
+        last_value = value;
+
+        chart.add_point(value);
+        chart.redraw(&renderer)?;
+        Ok(())
+    }))?;
+    timer.Start()?;
 
     let mut message = MSG::default();
     unsafe {
@@ -48,6 +64,7 @@ fn main() -> Result<()> {
             DispatchMessageW(&message);
         }
     }
+    timer.RemoveTick(timer_token)?;
     let _ = shutdown_dispatcher_queue_controller_and_wait(&controller, message.wParam.0 as i32)?;
     Ok(())
 }

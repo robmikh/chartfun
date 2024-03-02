@@ -56,6 +56,9 @@ impl ChartSurface {
                         sink.AddLine(D2D_POINT_2F { x: current_x, y: self.height as f32 - (point * pixels_per_percent)});
                         current_x += pixels_per_second;
                     }
+                    //println!("current_x: {}", current_x);
+                    //println!("pixels_per_second: {}", pixels_per_second);
+                    //println!("");
     
                     sink.AddLine(D2D_POINT_2F { x: self.width as f32, y: self.height as f32 });
     
