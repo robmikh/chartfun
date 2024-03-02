@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-#processdumper = { git = "https://github.com/robmikh/dwmdumper", rev = "930663915fd06109f7e66f9acdfce80a9188d3fe" }
-processdumper = { path = "../dwmdumper/processdumper" }
+processdumper = { git = "https://github.com/robmikh/dwmdumper", rev = "e94bd3742da69cbd98ed2b04910df9f6408f8d06" }
+#processdumper = { path = "../dwmdumper/processdumper" }
 
 [dependencies.windows]
 version = "0.54"

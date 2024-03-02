@@ -13,6 +13,7 @@ dependencies = [
 [[package]]
 name = "processdumper"
 version = "0.7.0"
+source = "git+https://github.com/robmikh/dwmdumper?rev=e94bd3742da69cbd98ed2b04910df9f6408f8d06#e94bd3742da69cbd98ed2b04910df9f6408f8d06"
 dependencies = [
  "windows",
 ]
