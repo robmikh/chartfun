@@ -51,16 +51,14 @@ impl ChartSurface {
                     let start_x = (MAX_POINTS - self.points.len()) as f32 * pixels_per_second;
                     sink.BeginFigure(D2D_POINT_2F { x: start_x, y: self.height as f32 }, D2D1_FIGURE_BEGIN_FILLED);
     
-                    let mut current_x = start_x;
-                    for point in &self.points {
-                        sink.AddLine(D2D_POINT_2F { x: current_x, y: self.height as f32 - (point * pixels_per_percent)});
-                        current_x += pixels_per_second;
+                    let mut last_x = 0.0;
+                    for (i, point) in self.points.iter().enumerate() {
+                        let x = (start_x + (i as f32 * pixels_per_second)).min(self.width as f32);
+                        sink.AddLine(D2D_POINT_2F { x: x, y: self.height as f32 - (point * pixels_per_percent)});
+                        last_x = x;
                     }
-                    //println!("current_x: {}", current_x);
-                    //println!("pixels_per_second: {}", pixels_per_second);
-                    //println!("");
     
-                    sink.AddLine(D2D_POINT_2F { x: self.width as f32, y: self.height as f32 });
+                    sink.AddLine(D2D_POINT_2F { x: last_x, y: self.height as f32 });
     
                     sink.EndFigure(D2D1_FIGURE_END_CLOSED);
                     sink.Close()?;
@@ -85,7 +83,7 @@ impl ChartSurface {
     }
 
     fn pixels_per_second(&self) -> f32 {
-        self.width as f32 / MAX_POINTS as f32
+        self.width as f32 / (MAX_POINTS - 1) as f32
     }
 
     fn pixels_per_percent(&self) -> f32 {
