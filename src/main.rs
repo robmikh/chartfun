@@ -11,18 +11,12 @@ use renderer::Renderer;
 use window::Window;
 use windows::{
     core::Result,
-    Foundation::{
-        Numerics::{Vector2, Vector3},
-        TypedEventHandler,
-    },
+    Foundation::{Numerics::Vector2, TypedEventHandler},
     Win32::{
         System::WinRT::{RoInitialize, RO_INIT_SINGLETHREADED},
         UI::WindowsAndMessaging::{DispatchMessageW, GetMessageW, TranslateMessage, MSG},
     },
-    UI::{
-        Color,
-        Composition::{CompositionStretch, Compositor},
-    },
+    UI::{Color, Composition::CompositionStretch},
 };
 use windows_utils::{
     composition::CompositionInterop,
