@@ -56,9 +56,7 @@ impl Window {
             (rect.right - rect.left, rect.bottom - rect.top)
         };
 
-        let mut result = Box::new(Self {
-            handle: HWND(0),
-        });
+        let mut result = Box::new(Self { handle: HWND(0) });
 
         let window = unsafe {
             CreateWindowExW(
