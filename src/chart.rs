@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use windows::{core::Result, Foundation::Numerics::Matrix3x2, Graphics::{DirectX::{DirectXAlphaMode, DirectXPixelFormat}, SizeInt32}, Win32::Graphics::Direct2D::{Common::{D2D1_COLOR_F, D2D1_FIGURE_BEGIN_FILLED, D2D1_FIGURE_END_CLOSED, D2D_POINT_2F, D2D_RECT_F}, ID2D1DeviceContext}, UI::Composition::CompositionDrawingSurface};
+use windows::{core::Result, Foundation::Numerics::Matrix3x2, Graphics::{DirectX::{DirectXAlphaMode, DirectXPixelFormat}, SizeInt32}, Win32::Graphics::Direct2D::{Common::{D2D1_COLOR_F, D2D1_FIGURE_BEGIN_FILLED, D2D1_FIGURE_END_CLOSED, D2D_POINT_2F, D2D_RECT_F}, ID2D1DeviceContext, ID2D1SolidColorBrush}, UI::Composition::CompositionDrawingSurface};
 
 use crate::{renderer::Renderer, windows_utils::composition::CompositionDrawingSurfaceInterop};
 
@@ -11,6 +11,8 @@ pub struct ChartSurface {
     points: VecDeque<f32>,
     width: i32,
     height: i32,
+    outline_brush: ID2D1SolidColorBrush,
+    fill_brush: ID2D1SolidColorBrush,
 }
 
 impl ChartSurface {
@@ -23,11 +25,24 @@ impl ChartSurface {
             DirectXAlphaMode::Premultiplied
         )?;
 
+        let mut color = D2D1_COLOR_F{ a: 1.0, r: 0.0667, g: 0.4902, b: 0.7333 };
+        let outline_brush = 
+            unsafe {
+                renderer.d2d_context.CreateSolidColorBrush(&color, None)?
+            };
+        color.a = 0.1;
+        let fill_brush = 
+            unsafe {
+                renderer.d2d_context.CreateSolidColorBrush(&color, None)?
+            };
+
         Ok(Self { 
             surface, 
             points: VecDeque::with_capacity(MAX_POINTS),
             width,
             height,
+            outline_brush,
+            fill_brush,
         })
     }
 
@@ -64,11 +79,12 @@ impl ChartSurface {
                     sink.Close()?;
                 }
 
-                context.DrawRectangle(&D2D_RECT_F { left: 0.0, top: 0.0, right: self.width as f32, bottom: self.height as f32}, &renderer.black_brush, 2.0, None);
+                context.DrawRectangle(&D2D_RECT_F { left: 0.0, top: 0.0, right: self.width as f32, bottom: self.height as f32}, &self.outline_brush, 2.0, None);
 
                 // TODO: Draw graph lines
 
-                context.FillGeometry(&path_geometry, &renderer.black_brush, None);
+                context.DrawGeometry(&path_geometry, &self.outline_brush, 1.0, None);
+                context.FillGeometry(&path_geometry, &self.fill_brush, None);
             }
             Ok(())
         })?;
