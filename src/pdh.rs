@@ -1,7 +1,7 @@
 use windows::{
     core::{Result, HSTRING, PWSTR},
     Win32::{
-        Foundation::BOOLEAN,
+        Foundation::{BOOLEAN, E_FAIL},
         System::Performance::{
             PdhAddCounterW, PdhAddEnglishCounterW, PdhCloseQuery, PdhExpandWildCardPathW,
             PdhGetCounterInfoW, PdhOpenQueryW, PDH_COUNTER_INFO_W, PDH_MORE_DATA,
@@ -213,7 +213,12 @@ pub fn add_perf_counters(
             &mut buffer_size,
             0,
         );
-        assert_eq!(result, PDH_MORE_DATA);
+        if result != PDH_MORE_DATA {
+            return Err(windows::core::Error::new(
+                E_FAIL,
+                "Failed to get performance data!",
+            ));
+        }
         let mut buffer = vec![0u16; buffer_size as usize];
         PDH_FUNCTION(PdhExpandWildCardPathW(
             None,
