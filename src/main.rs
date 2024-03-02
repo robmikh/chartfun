@@ -2,18 +2,19 @@ mod chart;
 mod renderer;
 mod window;
 mod windows_utils;
+mod pdh;
 
 use std::time::Duration;
 
 use chart::ChartSurface;
-use rand::Rng;
+use processdumper::{find_process_id_with_name_in_session, get_session_for_current_process};
 use renderer::Renderer;
 use window::Window;
 use windows::{
     core::Result,
     Foundation::{Numerics::Vector2, TypedEventHandler},
     Win32::{
-        System::WinRT::{RoInitialize, RO_INIT_SINGLETHREADED},
+        System::{Performance::{PdhCollectQueryData, PdhGetFormattedCounterValue, PDH_CSTATUS_VALID_DATA, PDH_FMT_COUNTERVALUE, PDH_FMT_DOUBLE}, WinRT::{RoInitialize, RO_INIT_SINGLETHREADED}},
         UI::WindowsAndMessaging::{DispatchMessageW, GetMessageW, TranslateMessage, MSG},
     },
     UI::{Color, Composition::CompositionStretch},
@@ -25,6 +26,8 @@ use windows_utils::{
         shutdown_dispatcher_queue_controller_and_wait,
     },
 };
+
+use crate::pdh::{add_perf_counters, PerfQueryHandle, PDH_FUNCTION};
 
 fn main() -> Result<()> {
     unsafe { RoInitialize(RO_INIT_SINGLETHREADED)? };
@@ -59,21 +62,60 @@ fn main() -> Result<()> {
     root.Children()?.InsertAtTop(&visual)?;
     chart.redraw(&renderer)?;
 
+    // During RDP sessions, you'll have multiple sessions and muiltple
+    // DWMs. We want the one the user is currently using, so find the
+    // session our program is running in.
+    println!("Getting the current session...");
+    let current_session = get_session_for_current_process()?;
+    println!("Current session id: {}", current_session);
+    println!("Looking for the dwm process of the current session...");
+    let process_id = find_process_id_with_name_in_session("dwm.exe", current_session)?
+        .expect("Could not find a dwm process for this session!");
+    println!("Found dwm.exe with pid: {}", process_id);
+
+    let counter_path = format!(
+        r#"\GPU Engine(pid_{}*engtype_3D)\Utilization Percentage"#,
+        process_id
+    );
+
+    let mut query_handle = PerfQueryHandle::open_query()?;
+    let counter_handles = add_perf_counters(&query_handle, &counter_path)?;
+
     let timer = queue.CreateTimer()?;
     timer.SetInterval(Duration::from_secs(1).into())?;
     timer.SetIsRepeating(true)?;
-    let mut last_value = 0.0;
     let timer_token = timer.Tick(&TypedEventHandler::<_, _>::new(move |_, _| -> Result<()> {
-        let mut rng = rand::thread_rng();
-        let value: f32 = rng.gen_range(-20.0..=20.0);
+        unsafe {
+            PDH_FUNCTION(PdhCollectQueryData(query_handle.0)).ok()?;
+        }
+        
+        let mut utilization_value = 0.0;
+        for counter_handle in &counter_handles {
+            let counter_value = unsafe {
+                let mut counter_type = 0;
+                let mut counter_value = PDH_FMT_COUNTERVALUE::default();
+                PDH_FUNCTION(PdhGetFormattedCounterValue(
+                    *counter_handle,
+                    PDH_FMT_DOUBLE,
+                    Some(&mut counter_type),
+                    &mut counter_value,
+                ))
+                .ok()?;
+                counter_value
+            };
+            assert_eq!(counter_value.CStatus, PDH_CSTATUS_VALID_DATA);
+            let value = unsafe { counter_value.Anonymous.doubleValue };
+            utilization_value += value;
+        }
 
-        let value = (last_value + value).clamp(0.0, 100.0);
-        last_value = value;
-
-        chart.add_point(value);
+        chart.add_point(utilization_value as f32);
         chart.redraw(&renderer)?;
         Ok(())
     }))?;
+
+    unsafe {
+        PDH_FUNCTION(PdhCollectQueryData(query_handle.0)).ok()?;
+    }
     timer.Start()?;
 
     let mut message = MSG::default();
@@ -84,6 +126,7 @@ fn main() -> Result<()> {
         }
     }
     timer.RemoveTick(timer_token)?;
+    query_handle.close_query()?;
     let _ = shutdown_dispatcher_queue_controller_and_wait(&controller, message.wParam.0 as i32)?;
     Ok(())
 }

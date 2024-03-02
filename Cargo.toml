@@ -4,7 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rand = "0.8.5"
+#processdumper = { git = "https://github.com/robmikh/dwmdumper", rev = "930663915fd06109f7e66f9acdfce80a9188d3fe" }
+processdumper = { path = "../dwmdumper/processdumper" }
 
 [dependencies.windows]
 version = "0.54"
@@ -26,6 +27,7 @@ features = [
     "Win32_Graphics_Gdi",
     "Win32_System_Com",
     "Win32_System_LibraryLoader",
+    "Win32_System_Performance",
     "Win32_System_WinRT",
     "Win32_System_WinRT_Composition",
     "Win32_UI_WindowsAndMessaging",
