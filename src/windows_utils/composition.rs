@@ -1,5 +1,5 @@
 use windows::{
-    core::{CanInto, ComInterface, IUnknown, Result},
+    core::{CanInto, Interface, IUnknown, Result},
     Win32::{
         Foundation::{ERROR_SPACES_UPDATE_COLUMN_STATE, HWND, POINT, RECT},
         System::WinRT::Composition::{
@@ -18,7 +18,7 @@ pub trait CompositionInterop {
         window: HWND,
         is_topmost: bool,
     ) -> Result<DesktopWindowTarget>;
-    fn create_graphics_device<T: ComInterface + CanInto<IUnknown>>(
+    fn create_graphics_device<T: Interface + CanInto<IUnknown>>(
         &self,
         rendering_device: &T,
     ) -> Result<CompositionGraphicsDevice>;
@@ -34,7 +34,7 @@ impl CompositionInterop for Compositor {
         unsafe { compositor_desktop.CreateDesktopWindowTarget(window, is_topmost) }
     }
 
-    fn create_graphics_device<T: ComInterface + CanInto<IUnknown>>(
+    fn create_graphics_device<T: Interface + CanInto<IUnknown>>(
         &self,
         rendering_device: &T,
     ) -> Result<CompositionGraphicsDevice> {
@@ -44,7 +44,7 @@ impl CompositionInterop for Compositor {
 }
 
 pub trait CompositionDrawingSurfaceInterop {
-    fn draw<T: ComInterface, F: FnOnce(T, POINT) -> Result<()>>(
+    fn draw<T: Interface, F: FnOnce(T, POINT) -> Result<()>>(
         &self,
         update_rect: Option<RECT>,
         draw_fn: F,
@@ -52,7 +52,7 @@ pub trait CompositionDrawingSurfaceInterop {
 }
 
 impl CompositionDrawingSurfaceInterop for CompositionDrawingSurface {
-    fn draw<T: ComInterface, F: FnOnce(T, POINT) -> Result<()>>(
+    fn draw<T: Interface, F: FnOnce(T, POINT) -> Result<()>>(
         &self,
         update_rect: Option<RECT>,
         draw_fn: F,

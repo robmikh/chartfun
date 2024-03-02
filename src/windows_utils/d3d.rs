@@ -1,4 +1,4 @@
-use windows::core::{ComInterface, Interface, Result};
+use windows::core::{Interface, Result};
 use windows::Win32::Graphics::Direct3D11::{ID3D11Texture2D, D3D11_CREATE_DEVICE_DEBUG};
 use windows::Win32::Graphics::Dxgi::IDXGISurface;
 use windows::Win32::Graphics::{
