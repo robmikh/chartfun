@@ -1,35 +1,21 @@
 use windows::{
     core::{w, Result},
-    Graphics::{
-        DirectX::{DirectXAlphaMode, DirectXPixelFormat},
-        SizeInt32,
-    },
-    Win32::{
-        Graphics::{
-            Direct2D::{
-                Common::{D2D1_COLOR_F, D2D_RECT_F},
-                ID2D1Device, ID2D1Device1, ID2D1DeviceContext, ID2D1Factory, ID2D1Factory1,
-                ID2D1SolidColorBrush, D2D1_DEVICE_CONTEXT_OPTIONS,
-                D2D1_DEVICE_CONTEXT_OPTIONS_NONE, D2D1_ROUNDED_RECT,
-            },
-            Direct3D11::{ID3D11Device, ID3D11DeviceContext},
-            DirectWrite::{
-                IDWriteFactory, IDWriteFontCollection, IDWriteRenderingParams, IDWriteTextFormat,
-                DWRITE_FACTORY_TYPE_SHARED, DWRITE_FONT_FACE_TYPE_OPENTYPE_COLLECTION,
-                DWRITE_FONT_STRETCH_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_WEIGHT_NORMAL,
-            },
-            Gdi::{MonitorFromWindow, MONITOR_DEFAULTTOPRIMARY},
+    Win32::Graphics::{
+        Direct2D::{
+            Common::D2D1_COLOR_F, ID2D1Device, ID2D1DeviceContext, ID2D1Factory1,
+            ID2D1SolidColorBrush, D2D1_DEVICE_CONTEXT_OPTIONS_NONE,
         },
-        UI::WindowsAndMessaging::GetDesktopWindow,
+        Direct3D11::{ID3D11Device, ID3D11DeviceContext},
+        DirectWrite::{
+            IDWriteFactory, IDWriteFontCollection, IDWriteTextFormat, DWRITE_FACTORY_TYPE_SHARED,
+            DWRITE_FONT_STRETCH_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_WEIGHT_NORMAL,
+        },
     },
-    UI::Composition::{
-        CompositionDrawingSurface, CompositionGraphicsDevice, CompositionNineGridBrush,
-        CompositionStretch, CompositionSurfaceBrush, Compositor,
-    },
+    UI::Composition::{CompositionGraphicsDevice, Compositor},
 };
 
 use crate::windows_utils::{
-    composition::{CompositionDrawingSurfaceInterop, CompositionInterop},
+    composition::CompositionInterop,
     d2d::{create_d2d_device, create_d2d_factory},
     d3d::create_d3d_device,
     dwrite::create_dwrite_factory,
