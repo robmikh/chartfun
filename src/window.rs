@@ -96,7 +96,7 @@ impl Window {
             }
             WM_MOUSEMOVE => {
                 let (x, y) = get_mouse_position(lparam);
-                let point = Vector2 {
+                let _point = Vector2 {
                     X: x as f32,
                     Y: y as f32,
                 };
@@ -104,7 +104,7 @@ impl Window {
             }
             WM_SIZE | WM_SIZING => {
                 let new_size = self.size().unwrap();
-                let new_size = Vector2 {
+                let _new_size = Vector2 {
                     X: new_size.Width as f32,
                     Y: new_size.Height as f32,
                 };

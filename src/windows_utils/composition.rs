@@ -1,7 +1,7 @@
 use windows::{
     core::{CanInto, IUnknown, Interface, Result},
     Win32::{
-        Foundation::{ERROR_SPACES_UPDATE_COLUMN_STATE, HWND, POINT, RECT},
+        Foundation::{HWND, POINT, RECT},
         System::WinRT::Composition::{
             ICompositionDrawingSurfaceInterop, ICompositorDesktopInterop, ICompositorInterop,
         },
