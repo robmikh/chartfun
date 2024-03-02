@@ -18,12 +18,6 @@ pub struct Renderer {
     
     // TODO: Text format storage
     pub normal_text_format: IDWriteTextFormat,
-
-    // TODO: Common asset storage
-    pub small_rounded_corner_surface: CompositionDrawingSurface,
-    pub small_rounded_corner_mask_surface: CompositionDrawingSurface,
-    pub small_rounded_corner_brush: CompositionNineGridBrush,
-    pub small_rounded_corner_mask_brush: CompositionSurfaceBrush,
 }
 
 impl Renderer {
@@ -61,55 +55,6 @@ impl Renderer {
             w!("en-us"))?
         };
 
-        let small_rounded_corner_surface = comp_graphics.CreateDrawingSurface2(SizeInt32 { Width: 16, Height: 16}, DirectXPixelFormat::B8G8R8A8UIntNormalized, DirectXAlphaMode::Premultiplied)?;
-        let small_rounded_corner_mask_surface = comp_graphics.CreateDrawingSurface2(SizeInt32 { Width: 16, Height: 16}, DirectXPixelFormat::B8G8R8A8UIntNormalized, DirectXAlphaMode::Premultiplied)?;
-
-        let small_corner_brush = compositor.CreateSurfaceBrushWithSurface(&small_rounded_corner_surface)?;
-        small_corner_brush.SetStretch(CompositionStretch::Fill)?;
-        let small_rounded_corner_brush = compositor.CreateNineGridBrush()?;
-        small_rounded_corner_brush.SetInsets(4.0)?;
-        small_rounded_corner_brush.SetIsCenterHollow(true)?;
-        small_rounded_corner_brush.SetSource(&small_corner_brush)?;
-        let small_rounded_rect = D2D1_ROUNDED_RECT {
-            rect: D2D_RECT_F {
-                left: 1.5,
-                top: 1.5,
-                right: 13.5,
-                bottom: 13.5,
-            },
-            radiusX: 4.0,
-            radiusY: 4.0,
-        };
-        small_rounded_corner_surface.draw::<ID2D1DeviceContext, _>(None, |context, offset| -> Result<()> {
-            unsafe {
-                let mut rect = small_rounded_rect;
-                rect.rect.left += offset.x as f32;
-                rect.rect.top += offset.y as f32;
-                rect.rect.right += offset.x as f32;
-                rect.rect.bottom += offset.y as f32;
-
-                context.Clear(Some(&D2D1_COLOR_F{a: 0.0, r: 0.0, g: 0.0, b: 0.0 }));
-                context.DrawRoundedRectangle(&rect, &black_brush, 0.5, None);
-            }
-            Ok(())
-        })?;
-
-        let small_rounded_corner_mask_brush = compositor.CreateSurfaceBrushWithSurface(&small_rounded_corner_mask_surface)?;
-        small_rounded_corner_mask_brush.SetStretch(CompositionStretch::Fill)?;
-        small_rounded_corner_mask_surface.draw::<ID2D1DeviceContext, _>(None, |context, offset| -> Result<()> {
-            unsafe {
-                let mut rect = small_rounded_rect;
-                rect.rect.left += offset.x as f32;
-                rect.rect.top += offset.y as f32;
-                rect.rect.right += offset.x as f32;
-                rect.rect.bottom += offset.y as f32;
-
-                context.Clear(Some(&D2D1_COLOR_F{a: 0.0, r: 0.0, g: 0.0, b: 0.0 }));
-                context.FillRoundedRectangle(&rect, &black_brush);
-            }
-            Ok(())
-        })?;
-
         Ok(Self {
             d3d_device,
             d3d_context,
@@ -122,10 +67,6 @@ impl Renderer {
             font_collection,
             black_brush,
             normal_text_format,
-            small_rounded_corner_surface,
-            small_rounded_corner_mask_surface,
-            small_rounded_corner_brush,
-            small_rounded_corner_mask_brush,
         })
     }
 }
