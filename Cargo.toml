@@ -11,6 +11,7 @@ processdumper = { git = "https://github.com/robmikh/dwmdumper", rev = "356aa9672
 version = "0.54"
 features = [
     "Foundation_Collections",
+    "Foundation_Metadata",
     "Foundation_Numerics",
     "Graphics",
     "Graphics_DirectX",

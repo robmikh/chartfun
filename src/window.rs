@@ -6,7 +6,7 @@ use windows::{
     Graphics::SizeInt32,
     Win32::{
         Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM},
-        System::LibraryLoader::GetModuleHandleW,
+        System::{LibraryLoader::GetModuleHandleW, WindowsProgramming::MulDiv},
         UI::{
             HiDpi::{AdjustWindowRectExForDpi, GetDpiForWindow},
             WindowsAndMessaging::{
@@ -83,6 +83,13 @@ impl Window {
                 AdjustWindowRectExForDpi(&mut rect, window_style, false, window_ex_style, dpi)?;
             }
             (rect.right - rect.left, rect.bottom - rect.top)
+        };
+        // For some reason, we will get scaled *down* by the dpi instead of using the values we pass into SetWindowPos...?
+        let (adjusted_width, adjusted_height) = unsafe {
+            (
+                MulDiv(adjusted_width, dpi as i32, 96),
+                MulDiv(adjusted_height, dpi as i32, 96),
+            )
         };
         unsafe {
             SetWindowPos(

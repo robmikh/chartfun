@@ -42,7 +42,7 @@ pub struct ChartSurface {
 impl ChartSurface {
     pub fn new(renderer: &Renderer, dpi: u32) -> Result<Self> {
         let unscaled_width = 250;
-        let unscaled_height = 225;
+        let unscaled_height = 226;
         let width = unsafe { MulDiv(unscaled_width, dpi as i32, 96) };
         let height = unsafe { MulDiv(unscaled_height, dpi as i32, 96) };
         let surface = renderer.comp_graphics.CreateDrawingSurface2(

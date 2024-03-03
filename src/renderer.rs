@@ -1,5 +1,6 @@
 use windows::{
-    core::{w, Result},
+    core::{h, w, Result, RuntimeName, HSTRING},
+    Foundation::Metadata::ApiInformation,
     Win32::Graphics::{
         Direct2D::{
             Common::D2D1_COLOR_F, ID2D1Device, ID2D1DeviceContext, ID2D1Factory1,
@@ -11,7 +12,7 @@ use windows::{
             DWRITE_FONT_STRETCH_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_WEIGHT_NORMAL,
         },
     },
-    UI::Composition::{CompositionGraphicsDevice, Compositor},
+    UI::Composition::{CompositionGraphicsDevice, Compositor, Visual},
 };
 
 use crate::windows_utils::{
@@ -37,6 +38,9 @@ pub struct Renderer {
 
     // TODO: Text format storage
     pub normal_text_format: IDWriteTextFormat,
+
+    // TODO: Metadata info storage
+    pub pixel_snapping_available: bool,
 }
 
 impl Renderer {
@@ -81,6 +85,10 @@ impl Renderer {
             )?
         };
 
+        let type_name = HSTRING::from(Visual::NAME);
+        let pixel_snapping_available =
+            ApiInformation::IsPropertyPresent(&type_name, h!("IsPixelSnappingEnabled"))?;
+
         Ok(Self {
             d3d_device,
             d3d_context,
@@ -93,6 +101,7 @@ impl Renderer {
             font_collection,
             black_brush,
             normal_text_format,
+            pixel_snapping_available,
         })
     }
 }

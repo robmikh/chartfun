@@ -46,53 +46,24 @@ impl TextBlock {
             )?
         };
 
-        let metrics = unsafe { text_layout.GetOverhangMetrics()? };
-        let (max_width, max_height) = unsafe {
-            let width = text_layout.GetMaxWidth();
-            let height = text_layout.GetMaxHeight();
-            (width, height)
-        };
-        let text_width = (metrics.right + max_width + -metrics.left).ceil();
-        let text_height = (metrics.bottom + max_height + -metrics.top).ceil();
-        let text_size = SizeInt32 {
-            Width: unsafe { MulDiv(text_width as i32, dpi as i32, 96) },
-            Height: unsafe { MulDiv(text_height as i32, dpi as i32, 96) },
-        };
-        let text_width = text_size.Width as f32;
-        let text_height = text_size.Height as f32;
-
         let root = renderer.compositor.CreateSpriteVisual()?;
-        root.SetSize(Vector2::new(text_width, text_height))?;
+        if renderer.pixel_snapping_available {
+            root.SetIsPixelSnappingEnabled(true)?;
+        }
         let surface_brush = renderer.compositor.CreateSurfaceBrush()?;
 
         let surface = renderer.comp_graphics.CreateDrawingSurface2(
-            text_size,
+            SizeInt32 {
+                Width: 1,
+                Height: 1,
+            },
             DirectXPixelFormat::A8UIntNormalized,
             DirectXAlphaMode::Premultiplied,
         )?;
         surface_brush.SetSurface(&surface)?;
         surface_brush.SetStretch(CompositionStretch::None)?;
-        let color_brush = &renderer.black_brush;
-        surface.draw::<ID2D1DeviceContext, _>(None, |context, offset| -> Result<()> {
-            unsafe {
-                context.Clear(Some(&D2D1_COLOR_F {
-                    a: 0.0,
-                    r: 0.0,
-                    g: 0.0,
-                    b: 0.0,
-                }));
-                context.DrawTextLayout(
-                    D2D_POINT_2F {
-                        x: offset.x as f32,
-                        y: offset.y as f32,
-                    },
-                    &text_layout,
-                    color_brush,
-                    D2D1_DRAW_TEXT_OPTIONS_NONE,
-                );
-            }
-            Ok(())
-        })?;
+        surface_brush.SetHorizontalAlignmentRatio(0.0)?;
+        surface_brush.SetVerticalAlignmentRatio(0.0)?;
 
         let mask_brush = renderer.compositor.CreateMaskBrush()?;
         let text_color_brush = renderer.compositor.CreateColorBrushWithColor(color)?;
@@ -101,13 +72,16 @@ impl TextBlock {
 
         root.SetBrush(&mask_brush)?;
 
-        Ok(Self {
+        let result = Self {
             text,
             text_layout,
             surface,
             root,
             dpi: dpi as i32,
-        })
+        };
+        result.redraw(renderer)?;
+
+        Ok(result)
     }
 
     pub fn root(&self) -> &SpriteVisual {
