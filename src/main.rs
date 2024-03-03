@@ -120,6 +120,7 @@ fn run() -> Result<()> {
     // SAFETY: There isn't a race here with the tick handler because we are
     // no longer pumping messages.
     timer.RemoveTick(timer_token)?;
+    timer.Stop()?;
     perf_tracker.close()?;
     let _ = shutdown_dispatcher_queue_controller_and_wait(&controller, message.wParam.0 as i32)?;
     Ok(())
