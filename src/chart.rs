@@ -195,6 +195,13 @@ impl ChartSurface {
         self.grid_offset = (self.grid_offset + 1) % CELL_WIDTH_IN_SECONDS;
     }
 
+    pub fn size(&self) -> SizeInt32 {
+        SizeInt32 {
+            Width: self.width,
+            Height: self.height,
+        }
+    }
+
     fn pixels_per_second(&self) -> f32 {
         self.width as f32 / (MAX_POINTS - 1) as f32
     }

@@ -5,6 +5,7 @@ mod pdh;
 mod perf;
 mod pid;
 mod renderer;
+mod text_block;
 mod window;
 mod windows_utils;
 
@@ -12,12 +13,16 @@ use std::time::Duration;
 
 use chart::ChartSurface;
 use perf::PerfTracker;
-use pid::{get_current_dwm_pid, parse_pid};
+use pid::{get_current_dwm_pid, get_name_from_pid, parse_pid};
 use renderer::Renderer;
+use text_block::TextBlock;
 use window::Window;
 use windows::{
     core::{w, Result, HSTRING},
-    Foundation::{Numerics::Vector2, TypedEventHandler},
+    Foundation::{
+        Numerics::{Vector2, Vector3},
+        TypedEventHandler,
+    },
     Win32::{
         Foundation::E_FAIL,
         System::WinRT::{RoInitialize, RO_INIT_SINGLETHREADED},
@@ -33,6 +38,7 @@ use windows_utils::{
         create_dispatcher_queue_controller_for_current_thread,
         shutdown_dispatcher_queue_controller_and_wait,
     },
+    numerics::ToVector2,
 };
 
 fn run() -> Result<()> {
@@ -54,8 +60,8 @@ fn run() -> Result<()> {
     let controller = create_dispatcher_queue_controller_for_current_thread()?;
     let queue = controller.DispatcherQueue()?;
 
-    let window_width = 800;
-    let window_height = 600;
+    let window_width = 432;
+    let window_height = 362;
 
     let renderer = Renderer::new()?;
 
@@ -71,7 +77,9 @@ fn run() -> Result<()> {
 
     let mut chart = ChartSurface::new(&renderer)?;
     let visual = compositor.CreateSpriteVisual()?;
-    visual.SetRelativeSizeAdjustment(Vector2::new(1.0, 1.0))?;
+    visual.SetSize(chart.size().to_vector2())?;
+    visual.SetRelativeOffsetAdjustment(Vector3::new(0.5, 0.5, 0.0))?;
+    visual.SetAnchorPoint(Vector2::new(0.5, 0.5))?;
     let brush = compositor.CreateSurfaceBrushWithSurface(chart.surface())?;
     brush.SetStretch(CompositionStretch::None)?;
     visual.SetBrush(&brush)?;
@@ -83,6 +91,49 @@ fn run() -> Result<()> {
     } else {
         get_current_dwm_pid()?
     };
+
+    let process_name = get_name_from_pid(process_id)?;
+    let process_name_text = TextBlock::new(
+        &renderer,
+        process_name,
+        Color {
+            A: 255,
+            R: 0,
+            G: 0,
+            B: 0,
+        },
+    )?;
+
+    let mut utilization_text = TextBlock::new(
+        &renderer,
+        "0%".to_owned(),
+        Color {
+            A: 255,
+            R: 112,
+            G: 112,
+            B: 112,
+        },
+    )?;
+    let utilization_text_root = utilization_text.root();
+    utilization_text_root.SetAnchorPoint(Vector2::new(1.0, 0.0))?;
+    utilization_text_root.SetRelativeOffsetAdjustment(Vector3::new(1.0, 0.0, 0.0))?;
+
+    let info_height = {
+        let process_name_height = process_name_text.root().Size()?;
+        let utilization_height = utilization_text_root.Size()?;
+        process_name_height.Y.max(utilization_height.Y)
+    };
+
+    let info_root = compositor.CreateContainerVisual()?;
+    info_root.SetRelativeSizeAdjustment(Vector2::new(1.0, 0.0))?;
+    info_root.SetSize(Vector2::new(0.0, info_height))?;
+    info_root.SetOffset(Vector3::new(0.0, -info_height, 0.0))?;
+    visual.Children()?.InsertAtTop(&info_root)?;
+
+    let info_root_children = info_root.Children()?;
+    info_root_children.InsertAtTop(process_name_text.root())?;
+    info_root_children.InsertAtTop(utilization_text_root)?;
+
     let perf_tracker = PerfTracker::new(process_id)?;
 
     let timer = queue.CreateTimer()?;
@@ -99,6 +150,7 @@ fn run() -> Result<()> {
             let utilization_value = perf_tracker.get_current_value()?;
             chart.add_point(utilization_value as f32);
             chart.redraw(&renderer)?;
+            utilization_text.set_text(&renderer, format!("{}%", utilization_value as i32))?;
             Ok(())
         }
     }))?;

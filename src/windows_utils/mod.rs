@@ -4,3 +4,4 @@ pub mod d3d;
 pub mod dispatcher_queue;
 pub mod dwrite;
 pub mod handle;
+pub mod numerics;
