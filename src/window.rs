@@ -7,23 +7,28 @@ use windows::{
     Win32::{
         Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM},
         System::LibraryLoader::GetModuleHandleW,
-        UI::WindowsAndMessaging::{
-            AdjustWindowRectEx, CreateWindowExW, DefWindowProcW, GetClientRect, GetWindowLongPtrW,
-            LoadCursorW, PostQuitMessage, RegisterClassW, SetWindowLongPtrW, ShowWindow,
-            CREATESTRUCTW, CW_USEDEFAULT, GWLP_USERDATA, IDC_ARROW, SW_SHOW, WM_DESTROY,
-            WM_LBUTTONDOWN, WM_MOUSEMOVE, WM_NCCREATE, WM_RBUTTONDOWN, WM_SIZE, WM_SIZING,
-            WNDCLASSW, WS_EX_NOREDIRECTIONBITMAP, WS_OVERLAPPEDWINDOW,
+        UI::{
+            HiDpi::{AdjustWindowRectExForDpi, GetDpiForWindow},
+            WindowsAndMessaging::{
+                CreateWindowExW, DefWindowProcW, DestroyWindow, GetClientRect, GetWindowLongPtrW,
+                LoadCursorW, PostQuitMessage, RegisterClassW, SetWindowLongPtrW, SetWindowPos,
+                ShowWindow, CREATESTRUCTW, CW_USEDEFAULT, GWLP_USERDATA, IDC_ARROW, SWP_NOACTIVATE,
+                SWP_NOMOVE, SWP_NOZORDER, SW_SHOW, WM_DESTROY, WM_DPICHANGED, WM_LBUTTONDOWN,
+                WM_MOUSEMOVE, WM_NCCREATE, WM_RBUTTONDOWN, WM_SIZE, WM_SIZING, WNDCLASSW,
+                WS_EX_NOREDIRECTIONBITMAP, WS_OVERLAPPEDWINDOW,
+            },
         },
     },
 };
 
-use crate::windows_utils::handle::CheckHandle;
+use crate::{app::App, windows_utils::handle::CheckHandle};
 
 static REGISTER_WINDOW_CLASS: Once = Once::new();
 const WINDOW_CLASS_NAME: PCWSTR = w!("chartfun.Window");
 
 pub struct Window {
     handle: HWND,
+    app: Option<Box<App>>,
 }
 
 impl Window {
@@ -43,21 +48,10 @@ impl Window {
         let window_ex_style = WS_EX_NOREDIRECTIONBITMAP;
         let window_style = WS_OVERLAPPEDWINDOW;
 
-        let (adjusted_width, adjusted_height) = {
-            let mut rect = RECT {
-                left: 0,
-                top: 0,
-                right: width as i32,
-                bottom: height as i32,
-            };
-            unsafe {
-                AdjustWindowRectEx(&mut rect, window_style, false, window_ex_style)?;
-            }
-            (rect.right - rect.left, rect.bottom - rect.top)
-        };
-
-        let mut result = Box::new(Self { handle: HWND(0) });
-
+        let mut result = Box::new(Self {
+            handle: HWND(0),
+            app: None,
+        });
         let window = unsafe {
             CreateWindowExW(
                 window_ex_style,
@@ -66,8 +60,8 @@ impl Window {
                 window_style,
                 CW_USEDEFAULT,
                 CW_USEDEFAULT,
-                adjusted_width,
-                adjusted_height,
+                width as i32,
+                height as i32,
                 None,
                 None,
                 instance,
@@ -75,7 +69,32 @@ impl Window {
             )
             .ok()?
         };
-        unsafe { ShowWindow(window, SW_SHOW) };
+
+        let dpi = unsafe { GetDpiForWindow(window) };
+
+        let (adjusted_width, adjusted_height) = {
+            let mut rect = RECT {
+                left: 0,
+                top: 0,
+                right: width as i32,
+                bottom: height as i32,
+            };
+            unsafe {
+                AdjustWindowRectExForDpi(&mut rect, window_style, false, window_ex_style, dpi)?;
+            }
+            (rect.right - rect.left, rect.bottom - rect.top)
+        };
+        unsafe {
+            SetWindowPos(
+                window,
+                None,
+                0,
+                0,
+                adjusted_width,
+                adjusted_height,
+                SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOZORDER,
+            )?;
+        }
 
         Ok(result)
     }
@@ -86,6 +105,26 @@ impl Window {
 
     pub fn handle(&self) -> HWND {
         self.handle
+    }
+
+    pub fn show(&self) {
+        unsafe { ShowWindow(self.handle, SW_SHOW) };
+    }
+
+    pub fn dpi(&self) -> u32 {
+        unsafe { GetDpiForWindow(self.handle) }
+    }
+
+    pub fn set_app(&mut self, app: Box<App>) {
+        self.app = Some(app);
+    }
+
+    pub fn shutdown_app(&mut self) -> Result<()> {
+        let app = self.app.take();
+        if let Some(app) = app {
+            app.shutdown()?;
+        }
+        Ok(())
     }
 
     fn message_handler(&mut self, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
@@ -115,6 +154,26 @@ impl Window {
             }
             WM_RBUTTONDOWN => {
                 //self.game.on_pointer_pressed(true, false).unwrap();
+            }
+            WM_DPICHANGED => {
+                let rect: *const RECT = unsafe { std::mem::transmute(lparam) };
+                let rect = unsafe { rect.as_ref().unwrap() };
+                let _ = unsafe {
+                    SetWindowPos(
+                        self.handle,
+                        None,
+                        rect.left,
+                        rect.top,
+                        rect.right - rect.left,
+                        rect.bottom - rect.top,
+                        SWP_NOZORDER | SWP_NOACTIVATE,
+                    )
+                };
+                let dpi = self.dpi();
+                if let Some(app) = self.app.as_mut() {
+                    app.on_dpi_changed(dpi).unwrap();
+                }
+                return LRESULT(0);
             }
             _ => {}
         }
@@ -161,4 +220,10 @@ fn get_mouse_position(lparam: LPARAM) -> (isize, isize) {
     let x = lparam.0 & 0xffff;
     let y = (lparam.0 >> 16) & 0xffff;
     (x, y)
+}
+
+impl Drop for Window {
+    fn drop(&mut self) {
+        let _ = unsafe { DestroyWindow(self.handle) };
+    }
 }

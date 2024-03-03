@@ -7,12 +7,15 @@ use windows::{
         DirectX::{DirectXAlphaMode, DirectXPixelFormat},
         SizeInt32,
     },
-    Win32::Graphics::Direct2D::{
-        Common::{
-            D2D1_COLOR_F, D2D1_FIGURE_BEGIN_FILLED, D2D1_FIGURE_END_CLOSED, D2D_POINT_2F,
-            D2D_RECT_F,
+    Win32::{
+        Graphics::Direct2D::{
+            Common::{
+                D2D1_COLOR_F, D2D1_FIGURE_BEGIN_FILLED, D2D1_FIGURE_END_CLOSED, D2D_POINT_2F,
+                D2D_RECT_F,
+            },
+            ID2D1DeviceContext, ID2D1SolidColorBrush,
         },
-        ID2D1DeviceContext, ID2D1SolidColorBrush,
+        System::WindowsProgramming::MulDiv,
     },
     UI::Composition::CompositionDrawingSurface,
 };
@@ -27,6 +30,9 @@ pub struct ChartSurface {
     points: VecDeque<f32>,
     width: i32,
     height: i32,
+    unscaled_width: i32,
+    unscaled_height: i32,
+    dpi: i32,
     outline_brush: ID2D1SolidColorBrush,
     fill_brush: ID2D1SolidColorBrush,
     grid_brush: ID2D1SolidColorBrush,
@@ -34,9 +40,11 @@ pub struct ChartSurface {
 }
 
 impl ChartSurface {
-    pub fn new(renderer: &Renderer) -> Result<Self> {
-        let width = 250;
-        let height = 225;
+    pub fn new(renderer: &Renderer, dpi: u32) -> Result<Self> {
+        let unscaled_width = 250;
+        let unscaled_height = 225;
+        let width = unsafe { MulDiv(unscaled_width, dpi as i32, 96) };
+        let height = unsafe { MulDiv(unscaled_height, dpi as i32, 96) };
         let surface = renderer.comp_graphics.CreateDrawingSurface2(
             SizeInt32 {
                 Width: width,
@@ -72,6 +80,9 @@ impl ChartSurface {
             points: VecDeque::with_capacity(MAX_POINTS),
             width,
             height,
+            unscaled_width,
+            unscaled_height,
+            dpi: dpi as i32,
             outline_brush,
             fill_brush,
             grid_brush,
@@ -200,6 +211,17 @@ impl ChartSurface {
             Width: self.width,
             Height: self.height,
         }
+    }
+
+    pub fn set_dpi(&mut self, renderer: &Renderer, dpi: u32) -> Result<()> {
+        self.dpi = dpi as i32;
+        self.width = unsafe { MulDiv(self.unscaled_width, self.dpi, 96) };
+        self.height = unsafe { MulDiv(self.unscaled_height, self.dpi, 96) };
+
+        self.surface.Resize(self.size())?;
+        self.redraw(renderer)?;
+
+        Ok(())
     }
 
     fn pixels_per_second(&self) -> f32 {

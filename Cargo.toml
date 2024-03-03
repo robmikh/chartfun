@@ -31,6 +31,7 @@ features = [
     "Win32_System_ProcessStatus",
     "Win32_System_WinRT",
     "Win32_System_WinRT_Composition",
+    "Win32_UI_HiDpi",
     "Win32_UI_WindowsAndMessaging",
 ]
 
