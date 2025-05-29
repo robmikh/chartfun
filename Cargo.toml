@@ -38,3 +38,4 @@ features = [
 
 [features]
 dxdebug = []
+verbose = []

@@ -1,4 +1,4 @@
-//#![windows_subsystem = "windows"]
+#![cfg_attr(not(feature = "verbose"), windows_subsystem = "windows")]
 
 mod adapter;
 mod app;

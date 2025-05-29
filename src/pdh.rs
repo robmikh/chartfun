@@ -241,7 +241,9 @@ pub fn add_perf_counters(
 
         let mut counter_handles = Vec::new();
         for path in &paths {
-            println!("Full path: {}", path);
+            if cfg!(feature = "verbose") {
+                println!("Full path: {}", path);
+            }
             let mut counter_handle = 0;
             PDH_FUNCTION(PdhAddCounterW(query_handle.0, path, 0, &mut counter_handle)).ok()?;
             counter_handles.push(counter_handle);

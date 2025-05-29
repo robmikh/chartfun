@@ -29,7 +29,9 @@ impl PerfTracker {
                 process_id
             )
         };
-        println!("Search path: {}", counter_path);
+        if cfg!(feature = "verbose") {
+            println!("Search path: {}", counter_path);
+        }
 
         let query_handle = PerfQueryHandle::open_query()?;
         let counter_handles = add_perf_counters(&query_handle, &counter_path)?;
