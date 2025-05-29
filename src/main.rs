@@ -20,7 +20,6 @@ use window::Window;
 use windows::{
     core::{w, Result, HSTRING},
     Win32::{
-        Foundation::E_FAIL,
         Graphics::Dxgi::{CreateDXGIFactory1, IDXGIFactory1},
         System::WinRT::{RoInitialize, RO_INIT_SINGLETHREADED},
         UI::{
@@ -49,10 +48,14 @@ fn run() -> Result<()> {
         let dxgi_adapter = unsafe { dxgi_factory.EnumAdapters1(adapter_index)? };
         let adapter = Adapter::from_dxgi_adapter(&dxgi_adapter)?;
 
-        let message = HSTRING::from(&format!("Using: {}", adapter.name));
+        let message_string = format!("Using: {}", adapter.name);
+        let message = HSTRING::from(&message_string);
         unsafe {
             let _ = MessageBoxW(None, &message, w!("chartfun"), MB_ICONINFORMATION);
         };
+        if cfg!(feature = "verbose") {
+            println!("{}", message_string);
+        }
 
         Some(adapter.luid)
     } else {
