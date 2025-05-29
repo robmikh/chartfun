@@ -3,6 +3,7 @@
 mod adapter;
 mod app;
 mod chart;
+mod cli;
 mod pdh;
 mod perf;
 mod pid;
@@ -11,18 +12,22 @@ mod text_block;
 mod window;
 mod windows_utils;
 
+use adapter::Adapter;
 use app::App;
-use pid::{get_current_dwm_pid, parse_pid};
+use cli::parse_args;
+use pid::get_current_dwm_pid;
 use window::Window;
 use windows::{
     core::{w, Result, HSTRING},
     Win32::{
         Foundation::E_FAIL,
+        Graphics::Dxgi::{CreateDXGIFactory1, IDXGIFactory1},
         System::WinRT::{RoInitialize, RO_INIT_SINGLETHREADED},
         UI::{
             HiDpi::{SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2},
             WindowsAndMessaging::{
-                DispatchMessageW, GetMessageW, MessageBoxW, TranslateMessage, MB_ICONERROR, MSG,
+                DispatchMessageW, GetMessageW, MessageBoxW, TranslateMessage, MB_ICONERROR,
+                MB_ICONINFORMATION, MSG,
             },
         },
     },
@@ -36,16 +41,20 @@ use windows_utils::{
 };
 
 fn run() -> Result<()> {
-    let args: Vec<_> = std::env::args().skip(1).collect();
-    let pid = if let Some(pid_string) = args.get(0) {
-        if let Ok(pid) = parse_pid(&pid_string) {
-            Some(pid)
-        } else {
-            return Err(windows::core::Error::new(
-                E_FAIL,
-                "Failed to parse process id!",
-            ));
-        }
+    let args = parse_args()?;
+    let pid = args.pid;
+
+    let dxgi_factory: IDXGIFactory1 = unsafe { CreateDXGIFactory1()? };
+    let adapter = if let Some(adapter_index) = args.adapter {
+        let dxgi_adapter = unsafe { dxgi_factory.EnumAdapters1(adapter_index)? };
+        let adapter = Adapter::from_dxgi_adapter(&dxgi_adapter)?;
+
+        let message = HSTRING::from(&format!("Using: {}", adapter.name));
+        unsafe {
+            let _ = MessageBoxW(None, &message, w!("chartfun"), MB_ICONINFORMATION);
+        };
+
+        Some(adapter.luid)
     } else {
         None
     };
@@ -67,7 +76,7 @@ fn run() -> Result<()> {
         get_current_dwm_pid()?
     };
 
-    let app = App::new(process_id, dpi)?;
+    let app = App::new(process_id, dpi, adapter)?;
     let root = app.root().clone();
     let compositor = app.compositor().clone();
 

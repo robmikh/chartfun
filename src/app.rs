@@ -8,7 +8,7 @@ use windows::{
         TypedEventHandler,
     },
     System::{DispatcherQueue, DispatcherQueueTimer},
-    Win32::Graphics::Dxgi::{CreateDXGIFactory1, IDXGIFactory1},
+    Win32::Foundation::LUID,
     UI::{
         Color,
         Composition::{CompositionStretch, Compositor, ContainerVisual, SpriteVisual},
@@ -16,8 +16,8 @@ use windows::{
 };
 
 use crate::{
-    adapter::Adapter, chart::ChartSurface, perf::PerfTracker, pid::get_name_from_pid,
-    renderer::Renderer, text_block::TextBlock, windows_utils::numerics::ToVector2,
+    chart::ChartSurface, perf::PerfTracker, pid::get_name_from_pid, renderer::Renderer,
+    text_block::TextBlock, windows_utils::numerics::ToVector2,
 };
 
 pub struct App {
@@ -35,8 +35,8 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(process_id: u32, dpi: u32) -> Result<Box<Self>> {
-        let mut app = Box::new(Self::new_internal(process_id, dpi)?);
+    pub fn new(process_id: u32, dpi: u32, adapter_luid: Option<LUID>) -> Result<Box<Self>> {
+        let mut app = Box::new(Self::new_internal(process_id, dpi, adapter_luid)?);
         let timer = app.timer.clone();
         let timer_token = timer.Tick(&TypedEventHandler::<_, _>::new({
             // SAFETY: We know that the timer will only tick on the same thread
@@ -109,7 +109,7 @@ impl App {
         Ok(())
     }
 
-    fn new_internal(process_id: u32, dpi: u32) -> Result<Self> {
+    fn new_internal(process_id: u32, dpi: u32, adapter_luid: Option<LUID>) -> Result<Self> {
         let queue = DispatcherQueue::GetForCurrentThread()?;
         let renderer = Renderer::new()?;
 
@@ -178,9 +178,6 @@ impl App {
         info_root_children.InsertAtTop(process_name_text.root())?;
         info_root_children.InsertAtTop(utilization_text_root)?;
 
-        let dxgi_factory: IDXGIFactory1 = unsafe { CreateDXGIFactory1()? };
-        let adapters = Adapter::from_dxgi_factory(&dxgi_factory)?;
-        let adapter_luid = adapters.first().map(|x| x.luid);
         let perf_tracker = PerfTracker::new(process_id, adapter_luid)?;
 
         let timer = queue.CreateTimer()?;
