@@ -1,8 +1,11 @@
 use windows::{
     core::Result,
-    Win32::System::Performance::{
-        PdhCollectQueryData, PdhGetFormattedCounterValue, PDH_CSTATUS_VALID_DATA,
-        PDH_FMT_COUNTERVALUE, PDH_FMT_DOUBLE,
+    Win32::{
+        Foundation::LUID,
+        System::Performance::{
+            PdhCollectQueryData, PdhGetFormattedCounterValue, PDH_CSTATUS_VALID_DATA,
+            PDH_FMT_COUNTERVALUE, PDH_FMT_DOUBLE,
+        },
     },
 };
 
@@ -14,11 +17,19 @@ pub struct PerfTracker {
 }
 
 impl PerfTracker {
-    pub fn new(process_id: u32) -> Result<Self> {
-        let counter_path = format!(
-            r#"\GPU Engine(pid_{}*engtype_3D)\Utilization Percentage"#,
-            process_id
-        );
+    pub fn new(process_id: u32, luid: Option<LUID>) -> Result<Self> {
+        let counter_path = if let Some(luid) = luid {
+            format!(
+                r#"\GPU Engine(pid_{}_luid_{:#010X}_{:#010X}*engtype_3D)\Utilization Percentage"#,
+                process_id, luid.HighPart, luid.LowPart,
+            )
+        } else {
+            format!(
+                r#"\GPU Engine(pid_{}*engtype_3D)\Utilization Percentage"#,
+                process_id
+            )
+        };
+        println!("Search path: {}", counter_path);
 
         let query_handle = PerfQueryHandle::open_query()?;
         let counter_handles = add_perf_counters(&query_handle, &counter_path)?;

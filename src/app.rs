@@ -8,6 +8,7 @@ use windows::{
         TypedEventHandler,
     },
     System::{DispatcherQueue, DispatcherQueueTimer},
+    Win32::Graphics::Dxgi::{CreateDXGIFactory1, IDXGIFactory1},
     UI::{
         Color,
         Composition::{CompositionStretch, Compositor, ContainerVisual, SpriteVisual},
@@ -15,8 +16,8 @@ use windows::{
 };
 
 use crate::{
-    chart::ChartSurface, perf::PerfTracker, pid::get_name_from_pid, renderer::Renderer,
-    text_block::TextBlock, windows_utils::numerics::ToVector2,
+    adapter::Adapter, chart::ChartSurface, perf::PerfTracker, pid::get_name_from_pid,
+    renderer::Renderer, text_block::TextBlock, windows_utils::numerics::ToVector2,
 };
 
 pub struct App {
@@ -177,7 +178,10 @@ impl App {
         info_root_children.InsertAtTop(process_name_text.root())?;
         info_root_children.InsertAtTop(utilization_text_root)?;
 
-        let perf_tracker = PerfTracker::new(process_id)?;
+        let dxgi_factory: IDXGIFactory1 = unsafe { CreateDXGIFactory1()? };
+        let adapters = Adapter::from_dxgi_factory(&dxgi_factory)?;
+        let adapter_luid = adapters.first().map(|x| x.luid);
+        let perf_tracker = PerfTracker::new(process_id, adapter_luid)?;
 
         let timer = queue.CreateTimer()?;
         timer.SetInterval(Duration::from_secs(1).into())?;

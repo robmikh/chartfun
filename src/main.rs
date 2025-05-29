@@ -1,5 +1,6 @@
-#![windows_subsystem = "windows"]
+//#![windows_subsystem = "windows"]
 
+mod adapter;
 mod app;
 mod chart;
 mod pdh;
