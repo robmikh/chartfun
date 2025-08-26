@@ -70,7 +70,7 @@ impl PerfTracker {
         Ok(utilization_value)
     }
 
-    pub fn close(mut self) -> Result<()> {
+    pub fn close(&mut self) -> Result<()> {
         self.query_handle.close_query()
     }
 

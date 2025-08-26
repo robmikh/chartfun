@@ -8,7 +8,6 @@ use windows::{
         TypedEventHandler,
     },
     System::{DispatcherQueue, DispatcherQueueTimer},
-    Win32::Foundation::LUID,
     UI::{
         Color,
         Composition::{CompositionStretch, Compositor, ContainerVisual, SpriteVisual},
@@ -16,8 +15,7 @@ use windows::{
 };
 
 use crate::{
-    chart::ChartSurface, perf::PerfTracker, pid::get_name_from_pid, renderer::Renderer,
-    text_block::TextBlock, windows_utils::numerics::ToVector2,
+    chart::ChartSurface, renderer::Renderer, sources::DataSource, text_block::TextBlock, windows_utils::numerics::ToVector2
 };
 
 pub struct App {
@@ -28,15 +26,15 @@ pub struct App {
     utilization_text: TextBlock,
     chart_visual: SpriteVisual,
     info_root: ContainerVisual,
-    perf_tracker: PerfTracker,
+    data_source: Box<dyn DataSource>,
     timer: DispatcherQueueTimer,
     root: SpriteVisual,
     timer_token: EventRegistrationToken,
 }
 
 impl App {
-    pub fn new(process_id: u32, dpi: u32, adapter_luid: Option<LUID>) -> Result<Box<Self>> {
-        let mut app = Box::new(Self::new_internal(process_id, dpi, adapter_luid)?);
+    pub fn new(dpi: u32, data_source: Box<dyn DataSource>) -> Result<Box<Self>> {
+        let mut app = Box::new(Self::new_internal(dpi, data_source)?);
         let timer = app.timer.clone();
         let timer_token = timer.Tick(&TypedEventHandler::<_, _>::new({
             // SAFETY: We know that the timer will only tick on the same thread
@@ -53,7 +51,7 @@ impl App {
             }
         }))?;
 
-        app.perf_tracker.start()?;
+        app.data_source.start()?;
         app.timer.Start()?;
         app.timer_token = timer_token;
 
@@ -68,7 +66,7 @@ impl App {
         &self.root
     }
 
-    pub fn shutdown(self) -> Result<()> {
+    pub fn shutdown(mut self) -> Result<()> {
         let queue = DispatcherQueue::GetForCurrentThread()?;
         if queue != self.queue {
             panic!("The app must be shutdown on the same thread that created it!");
@@ -77,7 +75,7 @@ impl App {
         // on the same thread.
         self.timer.RemoveTick(self.timer_token)?;
         self.timer.Stop()?;
-        self.perf_tracker.close()?;
+        self.data_source.close()?;
         Ok(())
     }
 
@@ -101,15 +99,15 @@ impl App {
     }
 
     fn on_tick(&mut self) -> Result<()> {
-        let utilization_value = self.perf_tracker.get_current_value()?;
+        let utilization_value = self.data_source.get_current_value()?;
         self.chart.add_point(utilization_value as f32);
         self.chart.redraw(&self.renderer)?;
         self.utilization_text
-            .set_text(&self.renderer, format!("{}%", utilization_value as i32))?;
+            .set_text(&self.renderer, format!("{}{}", utilization_value as i32, self.data_source.unit_label()))?;
         Ok(())
     }
 
-    fn new_internal(process_id: u32, dpi: u32, adapter_luid: Option<LUID>) -> Result<Self> {
+    fn new_internal(dpi: u32, data_source: Box<dyn DataSource>) -> Result<Self> {
         let queue = DispatcherQueue::GetForCurrentThread()?;
         let renderer = Renderer::new()?;
 
@@ -123,6 +121,10 @@ impl App {
             B: 255,
         })?)?;
 
+        let max_value = data_source.gen_current_max()?;
+        let label = data_source.label()?;
+        let unit_label = data_source.unit_label();
+
         let chart = ChartSurface::new(&renderer, dpi)?;
         let chart_visual = compositor.CreateSpriteVisual()?;
         chart_visual.SetSize(chart.size().to_vector2())?;
@@ -134,10 +136,9 @@ impl App {
         root.Children()?.InsertAtTop(&chart_visual)?;
         chart.redraw(&renderer)?;
 
-        let process_name = get_name_from_pid(process_id)?;
         let process_name_text = TextBlock::new(
             &renderer,
-            process_name,
+            label,
             Color {
                 A: 255,
                 R: 0,
@@ -149,7 +150,7 @@ impl App {
 
         let utilization_text = TextBlock::new(
             &renderer,
-            "0%".to_owned(),
+            format!("{}{}", 0, unit_label),
             Color {
                 A: 255,
                 R: 112,
@@ -178,8 +179,6 @@ impl App {
         info_root_children.InsertAtTop(process_name_text.root())?;
         info_root_children.InsertAtTop(utilization_text_root)?;
 
-        let perf_tracker = PerfTracker::new(process_id, adapter_luid)?;
-
         let timer = queue.CreateTimer()?;
         timer.SetInterval(Duration::from_secs(1).into())?;
         timer.SetIsRepeating(true)?;
@@ -192,7 +191,7 @@ impl App {
             utilization_text,
             chart_visual,
             info_root,
-            perf_tracker,
+            data_source,
             timer,
             root,
             timer_token: Default::default(),

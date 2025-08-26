@@ -11,6 +11,7 @@ mod renderer;
 mod text_block;
 mod window;
 mod windows_utils;
+mod sources;
 
 use adapter::Adapter;
 use app::App;
@@ -38,6 +39,8 @@ use windows_utils::{
         shutdown_dispatcher_queue_controller_and_wait,
     },
 };
+
+use crate::sources::gpu_util::GpuUtilization;
 
 fn run() -> Result<()> {
     let args = parse_args()?;
@@ -79,7 +82,8 @@ fn run() -> Result<()> {
         get_current_dwm_pid()?
     };
 
-    let app = App::new(process_id, dpi, adapter)?;
+    let data_source = Box::new(GpuUtilization::new(process_id, adapter)?);
+    let app = App::new(dpi, data_source)?;
     let root = app.root().clone();
     let compositor = app.compositor().clone();
 
