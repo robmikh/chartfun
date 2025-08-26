@@ -31,7 +31,7 @@ impl DataSource for GpuUtilization {
     }
 
     fn gen_current_max(&self) -> Result<f64> {
-        Ok(100.0)
+        Ok(1.0)
     }
     
     fn label(&self) -> Result<String> {

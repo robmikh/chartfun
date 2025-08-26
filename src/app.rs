@@ -101,6 +101,7 @@ impl App {
     fn on_tick(&mut self) -> Result<()> {
         let utilization_value = self.data_source.get_current_value()?;
         self.chart.add_point(utilization_value as f32);
+        self.chart.set_max_value(self.data_source.gen_current_max()? as f32);
         self.chart.redraw(&self.renderer)?;
         self.utilization_text
             .set_text(&self.renderer, format!("{}{}", utilization_value as i32, self.data_source.unit_label()))?;
@@ -125,7 +126,7 @@ impl App {
         let label = data_source.label()?;
         let unit_label = data_source.unit_label();
 
-        let chart = ChartSurface::new(&renderer, dpi)?;
+        let chart = ChartSurface::new(&renderer, dpi, max_value as f32)?;
         let chart_visual = compositor.CreateSpriteVisual()?;
         chart_visual.SetSize(chart.size().to_vector2())?;
         chart_visual.SetRelativeOffsetAdjustment(Vector3::new(0.5, 0.5, 0.0))?;

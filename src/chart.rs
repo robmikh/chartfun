@@ -37,10 +37,11 @@ pub struct ChartSurface {
     fill_brush: ID2D1SolidColorBrush,
     grid_brush: ID2D1SolidColorBrush,
     grid_offset: usize,
+    max_value: f32,
 }
 
 impl ChartSurface {
-    pub fn new(renderer: &Renderer, dpi: u32) -> Result<Self> {
+    pub fn new(renderer: &Renderer, dpi: u32, max_value: f32) -> Result<Self> {
         let unscaled_width = 250;
         let unscaled_height = 226;
         let width = unsafe { MulDiv(unscaled_width, dpi as i32, 96) };
@@ -87,6 +88,7 @@ impl ChartSurface {
             fill_brush,
             grid_brush,
             grid_offset: 0,
+            max_value,
         })
     }
 
@@ -124,11 +126,12 @@ impl ChartSurface {
 
                         let mut last_x = 0.0;
                         for (i, point) in self.points.iter().enumerate() {
+                            let value = *point / self.max_value;
                             let x =
                                 (start_x + (i as f32 * pixels_per_second)).min(self.width as f32);
                             sink.AddLine(D2D_POINT_2F {
                                 x: x,
-                                y: self.height as f32 - (point * pixels_per_percent),
+                                y: self.height as f32 - (value * pixels_per_percent),
                             });
                             last_x = x;
                         }
@@ -204,6 +207,10 @@ impl ChartSurface {
         }
         self.points.push_back(point);
         self.grid_offset = (self.grid_offset + 1) % CELL_WIDTH_IN_SECONDS;
+    }
+
+    pub fn set_max_value(&mut self, max_value: f32) {
+        self.max_value = max_value;
     }
 
     pub fn size(&self) -> SizeInt32 {
