@@ -40,29 +40,52 @@ use windows_utils::{
     },
 };
 
-use crate::sources::gpu_util::GpuUtilization;
+use crate::sources::{dwm_fps::DwmFps, gpu_util::GpuUtilization, DataSource};
+
+fn get_adapter_from_index(dxgi_factory: &IDXGIFactory1, adapter_index: u32) -> Result<Adapter> {
+    let dxgi_adapter = unsafe { dxgi_factory.EnumAdapters1(adapter_index)? };
+    let adapter = Adapter::from_dxgi_adapter(&dxgi_adapter)?;
+    Ok(adapter)
+}
+
+fn record_adapter_usage(adapter: &Adapter) {
+    let message_string = format!("Using: {}", adapter.name);
+    let message = HSTRING::from(&message_string);
+    unsafe {
+        let _ = MessageBoxW(None, &message, w!("chartfun"), MB_ICONINFORMATION);
+    };
+    if cfg!(feature = "verbose") {
+        println!("{}", message_string);
+    }
+}
 
 fn run() -> Result<()> {
     let args = parse_args()?;
-    let pid = args.pid;
 
     let dxgi_factory: IDXGIFactory1 = unsafe { CreateDXGIFactory1()? };
-    let adapter = if let Some(adapter_index) = args.adapter {
-        let dxgi_adapter = unsafe { dxgi_factory.EnumAdapters1(adapter_index)? };
-        let adapter = Adapter::from_dxgi_adapter(&dxgi_adapter)?;
 
-        let message_string = format!("Using: {}", adapter.name);
-        let message = HSTRING::from(&message_string);
-        unsafe {
-            let _ = MessageBoxW(None, &message, w!("chartfun"), MB_ICONINFORMATION);
-        };
-        if cfg!(feature = "verbose") {
-            println!("{}", message_string);
-        }
-
-        Some(adapter.luid)
-    } else {
-        None
+    let data_source: Box<dyn DataSource> = match args.command {
+        cli::Command::DwmFps { adapter } => {
+            let adapter = get_adapter_from_index(&dxgi_factory, adapter)?;
+            record_adapter_usage(&adapter);
+            let luid = adapter.luid;
+            Box::new(DwmFps::new(luid)?)
+        },
+        cli::Command::GpuUtilization { pid, adapter } => {
+            let adapter = if let Some(adapter_index) = adapter {
+                let adapter = get_adapter_from_index(&dxgi_factory, adapter_index)?;
+                record_adapter_usage(&adapter);
+                Some(adapter.luid)
+            } else {
+                None
+            };
+            let process_id = if let Some(pid) = pid {
+                pid
+            } else {
+                get_current_dwm_pid()?
+            };
+            Box::new(GpuUtilization::new(process_id, adapter)?)
+        },
     };
 
     unsafe {
@@ -76,13 +99,6 @@ fn run() -> Result<()> {
     let mut window = Window::new("chartfun", window_width, window_height)?;
     let dpi = window.dpi();
 
-    let process_id = if let Some(pid) = pid {
-        pid
-    } else {
-        get_current_dwm_pid()?
-    };
-
-    let data_source = Box::new(GpuUtilization::new(process_id, adapter)?);
     let app = App::new(dpi, data_source)?;
     let root = app.root().clone();
     let compositor = app.compositor().clone();

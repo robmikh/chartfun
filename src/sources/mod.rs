@@ -11,3 +11,4 @@ pub trait DataSource {
 
 
 pub mod gpu_util;
+pub mod dwm_fps;
